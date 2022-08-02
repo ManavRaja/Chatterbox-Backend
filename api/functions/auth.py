@@ -11,7 +11,7 @@ from starlette import status
 from starlette.requests import Request
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from api import config as config
+from api import config
 from api.models import UserInDB, TokenData
 from api.utils import get_settings, get_db
 
