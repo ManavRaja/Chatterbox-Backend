@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from fastapi import HTTPException, Depends, Header, Form, Cookie, APIRouter, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
+from jose import jwt, JWSError
 from starlette import status
 from starlette.responses import Response
 
@@ -44,6 +45,40 @@ async def register(background_tasks: BackgroundTasks, csrf_token: str = Header(.
                                "hashed_password": hashed_password, "verified": False})
     background_tasks.add_task(send_verification_email, email, username)
     return {"msg": "Successfully registered! You must now verify your email before you can log in."}
+
+
+@auth_router.post("/verify-email")
+async def email_verification(email_verification_code: str = Form(...), csrf_token: str = Header(...), db=Depends(get_db)
+                             , settings: config.Settings = Depends(get_settings)):
+    """
+    Route for user to get their email verified.
+    :param email_verification_code:
+    :param csrf_token: HTTP header | prevents CSRF attack
+    :param db: AsyncIOMotorClient object | used to query db
+    :param settings: object of Settings class | contains data from .env file about the secret_key and algorithm to use
+    :return: 200 code and tells user their email has been verified
+    :raises: 401 HTTPException if email_verification_code JWT can't be decoded, 422 HTTPException if
+    email_verification_code or csrf_token isn't set
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(email_verification_code.strip(), settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWSError:
+        raise credentials_exception
+
+    if await db.Users.find_one({"email": email}) is None:
+        raise credentials_exception
+
+    await db.Users.update_one({"email": email},  {"$set": {"verified": True}})
+    return {"msg": "Your email has been verified."}
 
 
 @auth_router.post("/logout")
