@@ -140,3 +140,34 @@ async def change_password(current_password: str = Form(...), new_password: str =
     new_hashed_password = await get_password_hash(new_password)
     db.Users.update_one({"username": current_user_info.username}, {"$set": {"hashed_password": new_hashed_password}})
     return {"msg": "Your password was successfully changed."}
+
+
+@user_settings_router.post("/change-fullname")
+async def change_fullname(password: str = Form(...), new_fullname: str = Form(..., max_length=50), db=Depends(get_db),
+                          current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...),):
+    """
+    Route for a user to change their username.
+    :param password: str in Form Body | user's password for extra level of security
+    :param new_fullname: str in Form Body | the full name the user wants to change to
+    :param db: AsyncIOMotorClient object | used to query db
+    :param current_user_info:  user's info structured in User model | used to make sure user is authenticated and for
+    API to know which user is changing their full name
+    :param csrf_token: csrf_token: HTTP header | prevents CSRF attack
+    :return: 200 status code & that the user's full name was changed
+    :raises:  401 HTTPException if user isn't authenticated or if password is incorrect, 409 HTTPException if
+    new_fullname is already their full name, 422 HTTPException if user didn't give new_fullname, password, or csrf-token
+    """
+
+    """
+    Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
+    contain a user's hashed_password
+    """
+    user = await get_user(current_user_info.username, db)
+
+    if not await verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+    elif new_fullname == current_user_info.full_name:
+        raise HTTPException(status_code=409, detail="That's already your full name.")
+
+    db.User.update_one({"username": current_user_info}, {"$set": {"full_name": new_fullname}})
+    return {"msg": f"Your full name was successfully changed to {new_fullname}."}
