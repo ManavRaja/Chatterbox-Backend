@@ -4,7 +4,8 @@ from fastapi import APIRouter, UploadFile, Depends, Header, Form, HTTPException
 from starlette.responses import Response
 
 from api import config
-from api.functions.auth import get_current_user, authenticate_user, create_access_token, verify_password, get_user
+from api.functions.auth import get_current_user, authenticate_user, create_access_token, verify_password, get_user, \
+    get_password_hash
 from api.models import User
 from api.utils import get_settings, get_db, get_gridfs_db
 
@@ -100,3 +101,42 @@ async def change_username(response: Response, new_username: str = Form(..., max_
 
     db.Users.update_one({"username": current_user_info.username}, {"$set": {"username": new_username}})
     return f"Changed your username to `{new_username}`."
+
+
+@user_settings_router.post("/change-password")
+async def change_password(current_password: str = Form(...), new_password: str = Form(...),
+                          new_password_confirmation: str = Form(...), csrf_token: str = Header(...),
+                          current_user_info: User = Depends(get_current_user), db=Depends(get_db)):
+    """
+    Route for a user to change their password.
+    :param current_password:  str in Form Body | user's current password for extra level of security
+    :param new_password: str in Form Body | password the user wants to change to
+    :param new_password_confirmation: str in Form Body | user types in new_password again to make sure their new
+    password is what they want it to be
+    :param csrf_token: csrf_token: HTTP header | prevents CSRF attack
+    :param current_user_info: user's info structured in User model | used to make sure user is authenticated and for
+    API to know which user is changing their password
+    :param db: AsyncIOMotorClient object | used to query db
+    :return: 200 status and that the user's password was changed
+    :raises: 401 HTTPException if user isn't authenticated or current_password is incorrect, 422 HTTPException if
+    current_password, new_password, new_password_confirmation, of csrf-token header aren't set, 400 HTTP Exception if
+    user's new password and password confirmation don't match and 409 HTTPException if user's new_password is already
+    the current password
+    """
+
+    """
+    Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
+    contain a user's hashed_password
+    """
+    user = await get_user(current_user_info.username, db)
+
+    if not await verify_password(current_password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect current password.")
+    elif new_password != new_password_confirmation:
+        raise HTTPException(status_code=400, detail="New password and new password confirmation don't match.")
+    elif await verify_password(new_password, user.hashed_password):
+        raise HTTPException(status_code=409, detail="That's already your password.")
+
+    new_hashed_password = await get_password_hash(new_password)
+    db.Users.update_one({"username": current_user_info.username}, {"$set": {"hashed_password": new_hashed_password}})
+    return {"msg": "Your password was successfully changed."}
