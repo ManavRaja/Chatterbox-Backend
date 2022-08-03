@@ -1,6 +1,10 @@
-from fastapi import APIRouter, UploadFile, Depends, Header
+from datetime import timedelta
 
-from api.functions.auth import get_current_user
+from fastapi import APIRouter, UploadFile, Depends, Header, Form, HTTPException
+from starlette.responses import Response
+
+from api import config
+from api.functions.auth import get_current_user, authenticate_user, create_access_token, verify_password, get_user
 from api.models import User
 from api.utils import get_settings, get_db, get_gridfs_db
 
@@ -43,3 +47,56 @@ async def upload_profile_picture(pfp: UploadFile, gridfs_db=Depends(get_gridfs_d
     await grid_in.write(pfp.file)
     await grid_in.close()
     return {"msg": f"{pfp.filename} successfully set as profile picture."}
+
+
+@user_settings_router.post("/change-username")
+async def change_username(response: Response, new_username: str = Form(..., max_length=25), password: str = Form(...),
+                          current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...),
+                          db=Depends(get_db), settings: config.Settings = Depends(get_settings)):
+    """
+    Route for a user to change their username.
+    :param response: Starlette object | to delete and set access_token cookie
+    :param new_username: str in Form Body | the new username to be set
+    :param password: str in Form Body | user's password for extra level of security
+    :param current_user_info: user's info structured in User model |
+    :param csrf_token: HTTP header | prevents CSRF attack
+    :param db: AsyncIOMotorClient object | used to query db
+    :param settings: object of Settings class | contains data from .env file to use for how long the access_token JWT
+    should last
+    :return: 200 status and that the user's username was changed
+    :raises: 401 HTTPException if user isn't authenticated or password is incorrect, 422 HTTPException if new_username,
+    password, or, 409 HTTPException if the user's new_username is already the current username, a user with that
+    username already exists, or if csrf_token isn't set
+    """
+
+    """
+    Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
+    contain a user's hashed_password
+    """
+    user = await get_user(current_user_info.username, db)
+
+    if not await verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+    elif new_username == current_user_info.username:
+        raise HTTPException(status_code=409, detail="That's already your username.")
+    elif await db.Users.find_one({"username": new_username}):
+        raise HTTPException(status_code=409, detail="User with that username already exists.")
+
+    """ 
+    Deletes access_token cookie and sets new one with the user's new username as old cookie wouldn't be valid as 
+    the user's username will be changed and the old JWT was set with the previous username. ALso the new access_token 
+    basically pushes the forced logout time of the user due to expired JWT back by settings.ACCESS_TOKEN_EXPIRE_MINUTES 
+    instead of just the remainder of time they had from the old access_token. That's fine as the user had to retype 
+    their password anyway.
+     """
+    response.delete_cookie(key="access_token")
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = await create_access_token(
+        data={"sub": new_username}, expires_delta=access_token_expires
+    )
+    response.set_cookie(
+        key="access_token", value=f"Bearer {access_token}", secure=False, httponly=True, samesite="strict",
+        max_age=604800)
+
+    db.Users.update_one({"username": current_user_info.username}, {"$set": {"username": new_username}})
+    return f"Changed your username to `{new_username}`."
