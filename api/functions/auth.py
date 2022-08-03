@@ -115,13 +115,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme), settings: config
 
 
 async def send_verification_email(user_email: str, username: str):
+    """
+    Sends email verification code to user's email address.
+    :param user_email: str | email address of user which is where email verification code is sent
+    :param username: str | username of user to address them by in email
+    :return: nothing but sends email verification code to user's email address
+    """
     settings = get_settings()
 
     port = 465
     sender_email_address = settings.GMAIL_ADDRESS
     password = settings.GMAIL_APP_PASSWORD
     api_domain = settings.API_DOMAIN
-    verification_token = await create_access_token( data={"sub": user_email}, expires_delta=timedelta(minutes=480))
+    verification_token = await create_access_token(data={"sub": user_email}, expires_delta=timedelta(minutes=480))
 
     message = MIMEMultipart()
     message["Subject"] = "Chatterbox Registration - Verify Email Address"
