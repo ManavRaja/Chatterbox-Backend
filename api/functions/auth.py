@@ -126,7 +126,6 @@ async def send_verification_email(user_email: str, username: str):
     port = 465
     sender_email_address = settings.GMAIL_ADDRESS
     password = settings.GMAIL_APP_PASSWORD
-    api_domain = settings.API_DOMAIN
     verification_token = await create_access_token(data={"sub": user_email}, expires_delta=timedelta(minutes=480))
 
     message = MIMEMultipart()
