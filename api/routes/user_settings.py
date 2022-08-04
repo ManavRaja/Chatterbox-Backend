@@ -35,7 +35,7 @@ async def upload_profile_picture(pfp: UploadFile, gridfs_db=Depends(get_gridfs_d
     cursor = gridfs_db.find({"metadata.media_type": "profile_picture", "metadata.user_id": str(user_id)})
     while await cursor.fetch_next:  # This block of code runs if profile picture for user is already present
         grid_out = cursor.next_object()
-        await gridfs_db.delete(grid_out._id)
+        await gridfs_db.delete(grid_out._id)  # skipcq: PYL-W0212
         grid_in = gridfs_db.open_upload_stream(pfp.filename, metadata={"media_type": "profile_picture",
                                                                        "user_id": str(user_id)})
         await grid_in.write(pfp.file)
