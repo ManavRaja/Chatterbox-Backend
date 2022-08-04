@@ -16,5 +16,4 @@ async def get_db():
 
 
 async def get_gridfs_db():
-    settings = get_settings()
     return motor.motor_asyncio.AsyncIOMotorGridFSBucket(await get_db())

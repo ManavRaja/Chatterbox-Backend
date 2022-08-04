@@ -1,4 +1,8 @@
 from datetime import timedelta, datetime
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import smtplib
+import ssl
 from typing import Optional
 
 from fastapi import HTTPException, Depends
@@ -71,6 +75,8 @@ async def authenticate_user(username: str, password: str, db):
     user = await get_user(username, db)
     if not user:
         return False
+    if not user.verified:
+        return "User's email not verified."
     if not await verify_password(password, user.hashed_password):
         return False
     return user
@@ -106,3 +112,39 @@ async def get_current_user(token: str = Depends(oauth2_scheme), settings: config
     if user is None:
         raise credentials_exception
     return user
+
+
+async def send_verification_email(user_email: str, username: str):
+    """
+    Sends email verification code to user's email address.
+    :param user_email: str | email address of user which is where email verification code is sent
+    :param username: str | username of user to address them by in email
+    :return: nothing but sends email verification code to user's email address
+    """
+    settings = get_settings()
+
+    port = 465
+    sender_email_address = settings.GMAIL_ADDRESS
+    password = settings.GMAIL_APP_PASSWORD
+    verification_token = await create_access_token(data={"sub": user_email}, expires_delta=timedelta(minutes=480))
+
+    message = MIMEMultipart()
+    message["Subject"] = "Chatterbox Registration - Verify Email Address"
+    message["From"] = sender_email_address
+    message["To"] = user_email
+    message_html = f"""
+    Hello {username}!
+    
+    Welcome to Chatterbox. Below is your email verification code. It will only be valid for 8 hours.
+        
+    <br>
+    <br>
+        
+    <strong>{verification_token}</strong>
+    """
+    message.attach(MIMEText(message_html, "html"))
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
+        server.login(sender_email_address, password)
+        server.sendmail(sender_email_address, user_email, message.as_string())

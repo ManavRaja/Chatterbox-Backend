@@ -34,3 +34,4 @@ class User(BaseModel):
 class UserInDB(User):
     id: Optional[ObjectIdStr] = Field(..., alias="_id")
     hashed_password: str
+    verified: bool
