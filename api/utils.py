@@ -13,3 +13,7 @@ def get_settings():
 async def get_db():
     settings = get_settings()
     return motor.motor_asyncio.AsyncIOMotorClient(settings.mongo_client_url)["Chatterbox"]
+
+
+async def get_gridfs_db():
+    return motor.motor_asyncio.AsyncIOMotorGridFSBucket(await get_db())
