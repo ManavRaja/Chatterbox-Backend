@@ -15,7 +15,7 @@ user_settings_router = APIRouter()
 
 @user_settings_router.post("/upload-pfp")
 async def upload_profile_picture(pfp: UploadFile, gridfs_db=Depends(get_gridfs_db),
-                                 current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...)):
+                                 current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...)):  # skipcq: PYL-W0613, PYL-W0613
     """
     Route for a user to upload/update their profile picture. Takes in profile picture, creates AsyncIOMotorGridFSBucket
     object, gets the current user and requires csrf-token header to be present. Gets user's _id and sends query to
@@ -52,7 +52,7 @@ async def upload_profile_picture(pfp: UploadFile, gridfs_db=Depends(get_gridfs_d
 
 @user_settings_router.post("/change-username")
 async def change_username(response: Response, new_username: str = Form(..., max_length=25), password: str = Form(...),
-                          current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...),
+                          current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...),  # skipcq: PYL-W0613, PYL-W0613
                           db=Depends(get_db), settings: config.Settings = Depends(get_settings)):
     """
     Route for a user to change their username.
@@ -70,10 +70,8 @@ async def change_username(response: Response, new_username: str = Form(..., max_
     username already exists, or if csrf_token isn't set
     """
 
-    """
-    Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
-    contain a user's hashed_password
-    """
+    """ Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
+    contain a user's hashed_password """
     user = await get_user(current_user_info.username, db)
 
     if not await verify_password(password, user.hashed_password):
@@ -83,13 +81,11 @@ async def change_username(response: Response, new_username: str = Form(..., max_
     elif await db.Users.find_one({"username": new_username}):
         raise HTTPException(status_code=409, detail="User with that username already exists.")
 
-    """ 
-    Deletes access_token cookie and sets new one with the user's new username as old cookie wouldn't be valid as 
+    """ Deletes access_token cookie and sets new one with the user's new username as old cookie wouldn't be valid as 
     the user's username will be changed and the old JWT was set with the previous username. ALso the new access_token 
     basically pushes the forced logout time of the user due to expired JWT back by settings.ACCESS_TOKEN_EXPIRE_MINUTES 
     instead of just the remainder of time they had from the old access_token. That's fine as the user had to retype 
-    their password anyway.
-     """
+    their password anyway. """
     response.delete_cookie(key="access_token")
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = await create_access_token(
@@ -105,7 +101,7 @@ async def change_username(response: Response, new_username: str = Form(..., max_
 
 @user_settings_router.post("/change-password")
 async def change_password(current_password: str = Form(...), new_password: str = Form(...),
-                          new_password_confirmation: str = Form(...), csrf_token: str = Header(...),
+                          new_password_confirmation: str = Form(...), csrf_token: str = Header(...),  # skipcq: PYL-W0613, PYL-W0613
                           current_user_info: User = Depends(get_current_user), db=Depends(get_db)):
     """
     Route for a user to change their password.
@@ -124,10 +120,8 @@ async def change_password(current_password: str = Form(...), new_password: str =
     the current password
     """
 
-    """
-    Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
-    contain a user's hashed_password
-    """
+    """ Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
+    contain a user's hashed_password """
     user = await get_user(current_user_info.username, db)
 
     if not await verify_password(current_password, user.hashed_password):
@@ -144,7 +138,7 @@ async def change_password(current_password: str = Form(...), new_password: str =
 
 @user_settings_router.post("/change-fullname")
 async def change_fullname(password: str = Form(...), new_fullname: str = Form(..., max_length=50), db=Depends(get_db),
-                          current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...),):
+                          current_user_info: User = Depends(get_current_user), csrf_token: str = Header(...),):  # skipcq: PYL-W0613, PYL-W0613
     """
     Route for a user to change their username.
     :param password: str in Form Body | user's password for extra level of security
@@ -158,10 +152,8 @@ async def change_fullname(password: str = Form(...), new_fullname: str = Form(..
     new_fullname is already their full name, 422 HTTPException if user didn't give new_fullname, password, or csrf-token
     """
 
-    """
-    Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
-    contain a user's hashed_password
-    """
+    """ Gets user's document from db for their hashed_password which is returned as UserInDB model as User model doesn't 
+    contain a user's hashed_password """
     user = await get_user(current_user_info.username, db)
 
     if not await verify_password(password, user.hashed_password):

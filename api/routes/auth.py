@@ -48,7 +48,7 @@ async def register(background_tasks: BackgroundTasks, csrf_token: str = Header(.
 
 
 @auth_router.post("/verify-email")
-async def email_verification(email_verification_code: str = Form(...), csrf_token: str = Header(...), db=Depends(get_db)
+async def email_verification(email_verification_code: str = Form(...), csrf_token: str = Header(...), db=Depends(get_db)  # skipcq: PYL-W0613, PYL-W0613
                              , settings: config.Settings = Depends(get_settings)):
     """
     Route for user to get their email verified.
